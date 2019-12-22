@@ -1,0 +1,206 @@
+from bs4 import BeautifulSoup
+import requests as req
+import datetime
+
+
+def get_kinomax_cinema_list():
+    kinomax_link = 'https://kinomax.ru'
+    resp = req.get(kinomax_link + '/finder')
+    soup = BeautifulSoup(resp.text, 'lxml')
+    data = soup.findAll("div", {'class': 'pt-3 pb-3'})
+
+    ans = {}
+
+    for cinema in data:
+        adres = cinema.find('div', {'class': 'fs-08'}).text
+        adres_text = ' '.join(adres.split())
+        ans[cinema.find('a').text] = [adres_text, kinomax_link + cinema.find('a')['href']]
+
+    return ans
+
+
+def get_kinomax_date(link):
+    resp = req.get(link)
+    soup = BeautifulSoup(resp.text, 'lxml')
+    date_list = soup.findAll('div', {'class': 'date'})
+    data = {}
+    for date in date_list:
+        data[date.text.strip()] = date['data-date']
+
+    return data
+
+
+def get_kinomax_cinema_afisha(link):
+    resp = req.get(link)
+    soup = BeautifulSoup(resp.text, 'lxml')
+    film_list = soup.findAll('div', {'class': 'd-flex border-bottom-1 border-stack film'})
+    msg = ''
+    for film in film_list:
+        msg += '\n'
+        name = film.find('a').text
+        rating = film.find('div', {'class': 'ml-auto pr-2'}).find('a').text
+
+        msg += '\n*{0}* {1}/5'.format(name, rating)
+        schedule_list = film.findAll('div', {'class': 'd-flex w-100 schedule-row'})
+        for movie_format in schedule_list:
+            format_tag = movie_format.find('div', {'class': 'w-10 format-tag'}).text.strip()
+
+            seans_list = movie_format.findAll('div', {'class': 'session pr-2 d-flex flex-column pb-3'})
+            if seans_list:
+                msg += '\n_{0}:_'.format(format_tag)
+            else:
+                msg += '\nДоступных сеансов нет'
+            for seans in seans_list:
+                date = seans.find('a').text
+                price = seans.find('div', {'class': 'fs-07 text-main pt-2 text-center'}).text.strip()
+                msg += '\n    {0} {1}'.format(date, price)
+
+    return msg
+
+
+def get_karo_cinema_list():
+    karo_link = 'https://karofilm.ru'
+    resp = req.get(karo_link + '/theatres')
+    soup = BeautifulSoup(resp.text, 'lxml')
+    data = soup.findAll("a", {'class': 'cinemalist__cinema-item__link'})
+
+    ans = {}
+
+    for cinema in data:
+        name = 'Kаро' + cinema.find('div', {'class': 'cinemalist__cinema-item__label'}).text.strip()
+        adres = cinema.find('div', {'class': 'cinemalist__cinema-item__contacts'}).text
+        link = cinema['href']
+        adres_text = ' '.join(adres.split())
+        ans[name] = [adres_text, karo_link + link]
+
+    return ans
+
+
+def get_karo_date(link):
+    resp = req.get(link)
+    soup = BeautifulSoup(resp.text, 'lxml')
+    date_list = soup.find('div', {'class': 'select-date'}).findAll('option')
+    ans = {}
+    for date in date_list:
+        ans[date.text] = date['value']
+
+    return ans
+
+
+def get_karo_cinema_afisha(link):
+    resp = req.get(link)
+    soup = BeautifulSoup(resp.text, 'lxml')
+    film_list = soup.findAll('div', {'class': 'cinema-page-item__schedule__row__inner'})
+    msg = ''
+    for film in film_list:
+        msg += '\n'
+        name = film.find('h3').text.strip()
+        msg += '\n*{0}*'.format(name)
+        schedule_list = film.findAll('div', {'class': 'cinema-page-item__schedule__row__board-row'})
+
+        for movie_format in schedule_list:
+            format_tag = movie_format.find('div',
+                                           {'class': 'cinema-page-item__schedule__row__board-row__left'}).text.strip()
+            seans_list = movie_format.findAll('a', {'class': 'karo-wi-button sessionButton'})
+
+            if seans_list:
+                msg += '\n_{0}:_'.format(format_tag)
+            else:
+                msg += '\nДоступных сеансов нет'
+
+            for seans in seans_list:
+                date = seans.text
+                msg += '\n    {0}'.format(date)
+
+    return msg
+
+
+def get_formulakino_cinema_list():
+    cinemastar_link = 'https://kinoteatr.ru'
+    resp = req.get(cinemastar_link + '/raspisanie-kinoteatrov/')
+    soup = BeautifulSoup(resp.text, 'lxml')
+    data = soup.findAll("div", {'class': 'col-md-12 cinema_card'})
+
+    ans = {}
+
+    for cinema in data:
+        name = cinema.find('h3', {'class': 'title movie_card_title'}).text.strip()
+        adres = cinema.find('span', {'class': 'sub_title'}).text.strip()
+        link = cinema.find('a')['href']
+        adres_text = ' '.join(adres.split())
+        ans[name] = [adres_text, link]
+
+    return ans
+
+
+def get_formulakino_date(link):
+    base = datetime.datetime.today()
+    date_list = [base + datetime.timedelta(days=x) for x in range(7)]
+
+    ans = {}
+    for day in date_list:
+        ans[get_day_of_week(day.day, day.month, day.year)] = link + '?date=' + day.strftime('%Y-%m-%d')
+    return ans
+
+
+def get_formulakino_cinema_afisha(link):
+    resp = req.get(link)
+    soup = BeautifulSoup(resp.text, 'lxml')
+    film_list = soup.findAll('div', {'class': 'shedule_movie bordered gtm_movie'})
+    msg = ''
+    for film in film_list:
+        msg += '\n'
+        name = film.find('span', {'class': 'movie_card_header title'}).text.strip()
+        msg += '\n*{0}*'.format(name)
+
+        schedule_list = film.find('div', {'class': 'shedule_movie_sessions col col-md-8'}).findAll('a')
+
+        for movie in schedule_list:
+            format_tag = movie.find('span', {'class': 'shedule_session_format'}).text.strip()
+            format_tag_text = ' '.join(format_tag.split())
+            date = movie.find('span', {'class': 'shedule_session_time'}).text.strip()
+            price = movie.find('span', {'class': 'shedule_session_price'}).text.strip()
+
+            msg += '\n{0}    {1} {2}'.format(format_tag_text, date, price)
+
+    return msg
+
+
+def get_day_of_week(d, m, y):
+    month_data = {1: 'января',
+                  2: 'февраля',
+                  3: 'марта',
+                  4: 'апреля',
+                  5: 'мая',
+                  6: 'июня',
+                  7: 'июля',
+                  8: 'августа',
+                  9: 'сентября',
+                  10: 'октября',
+                  11: 'ноября',
+                  12: 'декабря'}
+
+    day_of_week_data = {1: 'понедельник',
+                        2: 'вторник',
+                        3: 'среда',
+                        4: 'четверг',
+                        5: 'пятница',
+                        6: 'суббота',
+                        0: 'воскресенье'}
+    month = m
+    day = d
+    if (m - 2) > 0:
+        y = y
+    else:
+        y - 1
+    if (m - 2) > 0:
+        m = m - 2
+    else:
+        12 - abs(m - 2)
+    c = y // 100
+    y = y % 100
+    n = (d + ((13 * m - 1) // 5) + y + (y // 4 + c // 4 - 2 * c + 777)) % 7
+    if datetime.datetime.today().day == day:
+        return '{0} {1} {2}'.format(day, month_data[month], 'сегодня')
+    else:
+        return '{0} {1} {2}'.format(day, month_data[month], day_of_week_data[n])
